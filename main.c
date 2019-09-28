@@ -185,13 +185,18 @@ static unsigned char *findVariable(char *var)
     unsigned char *ptr = variables;
 
     while (*ptr) {
-	if (*ptr == VAL_INT || *ptr == VAL_FLOAT) {
+	if (*ptr == VAL_INT || *ptr == VAL_FLOAT || *ptr == VAL_STRING) {
 	    if ((strlen(var) == ptr[1]) &&
 		!strncmp(var, (char *)&ptr[2], ptr[1])) {
 		return ptr;
 	    }
 	}
-	ptr += 1 + 1 + ptr[1] + 4; // val_type + name length + name + value (int/float = 4 bytes);
+	if (*ptr == VAL_STRING) {
+	    ptr += 1 + 1 + ptr[1];
+	    ptr += 1 + ptr[0];
+	} else {
+	    ptr += 1 + 1 + ptr[1] + 4; // val_type + name length + name + value (int/float = 4 bytes);
+	}
     }
 
     return NULL;
@@ -203,16 +208,17 @@ static int setVariable(char *var, Value *val)
     unsigned char *ptr = findVariable(var);
 
     if (ptr) {
-	if (val->type == VAL_STRING) {
+	if (val->type == VAL_STRING || *ptr == VAL_STRING) {
 	    unsigned char *ptr1 = ptr + 1 + 1 + ptr[1]; // type + varlen + varname;
 	    if (*ptr != VAL_STRING) {
 		ptr1 += 4; // int/float 4 bytes
 	    } else {
-		ptr1 += 1 + ptr[0]; // strlen + string
+		ptr1 += 1 + ptr1[0]; // strlen + string
 	    }
 	    int len = variablesEnd - ptr1;
 	    memmove(ptr, ptr1, len);
-	    variablesEnd -= len;
+	    variablesEnd -= (ptr1 - ptr);
+	    ptr = NULL;
 	} else {
 	    *ptr = val->type;
 	    ptr += 1 + 1 + ptr[1];
